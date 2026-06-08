@@ -20,6 +20,8 @@ import BotPage from '@/pages/Bot';
 import GeoPage from '@/pages/Geo';
 import AlertsPage from '@/pages/Alerts';
 import SettingsPage from '@/pages/Settings';
+import { useApi } from '@/hooks/useApi';
+import type { AlertEvent } from '@/lib/types';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,7 +43,7 @@ const NAV_ITEMS = [
   { label: '数据源设置', icon: Settings, path: '/settings' },
 ];
 
-function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+function Sidebar({ collapsed, activeAlerts, onToggle }: { collapsed: boolean; activeAlerts: number; onToggle: () => void }) {
   const location = useLocation();
 
   return (
@@ -89,9 +91,9 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
             >
               <item.icon className={cn('w-4 h-4 shrink-0', isActive && 'text-primary')} />
               {!collapsed && <span className="truncate">{item.label}</span>}
-              {item.label === '告警中心' && !collapsed && (
+              {item.label === '告警中心' && activeAlerts > 0 && !collapsed && (
                 <span className="ml-auto w-5 h-5 rounded-full bg-destructive/20 text-destructive text-[10px] font-bold flex items-center justify-center">
-                  2
+                  {activeAlerts}
                 </span>
               )}
             </NavLink>
@@ -112,7 +114,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
   );
 }
 
-function HeaderBar({ collapsed }: { collapsed: boolean }) {
+function HeaderBar({ collapsed, activeAlerts }: { collapsed: boolean; activeAlerts: number }) {
   const { theme, setTheme } = useTheme();
   const [timeRange, setTimeRange] = useState('24h');
   const [lastRefresh, setLastRefresh] = useState(new Date());
@@ -160,11 +162,12 @@ function HeaderBar({ collapsed }: { collapsed: boolean }) {
         <span>{lastRefresh.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
       </div>
 
-      {/* Active Alerts Badge */}
-      <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-destructive/10 text-destructive text-xs font-medium">
-        <AlertTriangle className="w-3 h-3" />
-        <span>2 活跃告警</span>
-      </div>
+      {activeAlerts > 0 && (
+        <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-destructive/10 text-destructive text-xs font-medium">
+          <AlertTriangle className="w-3 h-3" />
+          <span>{activeAlerts} 活跃告警</span>
+        </div>
+      )}
 
       {/* Theme Toggle */}
       <button
@@ -179,11 +182,13 @@ function HeaderBar({ collapsed }: { collapsed: boolean }) {
 
 function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const { data: alertEvents } = useApi<AlertEvent[]>(['alerts', 'events'], '/api/alerts/events');
+  const activeAlerts = (alertEvents || []).filter(event => event.status === 'active').length;
 
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
-      <HeaderBar collapsed={collapsed} />
+      <Sidebar collapsed={collapsed} activeAlerts={activeAlerts} onToggle={() => setCollapsed(!collapsed)} />
+      <HeaderBar collapsed={collapsed} activeAlerts={activeAlerts} />
       <main
         className={cn(
           'pt-14 transition-all duration-300',

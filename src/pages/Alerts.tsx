@@ -28,6 +28,7 @@ export default function AlertsPage() {
   const { data: events, isLoading: loadingEvents } = useApi<AlertEvent[]>(
     ['alerts', 'events'], '/api/alerts/events'
   );
+  const activeEvents = (events || []).filter(e => e.status === 'active');
 
   const toggleRule = async (rule: AlertRule) => {
     const res = await fetch(`/api/alerts/rules/${rule.id}`, {
@@ -106,15 +107,15 @@ export default function AlertsPage() {
       </div>
 
       {/* Active Alerts Banner */}
-      {events?.filter(e => e.status === 'active').length && (
+      {activeEvents.length > 0 && (
         <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3 flex items-center gap-3">
           <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-medium text-destructive">
-              {events.filter(e => e.status === 'active').length} 个活跃告警
+              {activeEvents.length} 个活跃告警
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {events.filter(e => e.status === 'active').map(e => e.rule_name).join('、')}
+              {activeEvents.map(e => e.rule_name).join('、')}
             </p>
           </div>
         </div>
@@ -143,9 +144,9 @@ export default function AlertsPage() {
           )}
         >
           告警历史
-          {events?.filter(e => e.status === 'active').length && (
+          {activeEvents.length > 0 && (
             <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-destructive/20 text-destructive text-[10px] font-bold">
-              {events.filter(e => e.status === 'active').length}
+              {activeEvents.length}
             </span>
           )}
         </button>

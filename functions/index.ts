@@ -290,26 +290,19 @@ async function runSync(dsId: string): Promise<{ success: boolean; message: strin
     prefix: ds.prefix || '',
   };
 
-  // Update sync status
-  const now = new Date().toISOString();
   const idx = sources.findIndex((s: any) => s.id === dsId);
-  if (idx >= 0) {
-    sources[idx].last_sync_status = 'processing';
-    sources[idx].updated_at = now;
-    await setCollection(kv_config, 'datasources', sources);
-  }
 
   let totalFiles = 0;
   let totalRecords = 0;
   let allErrors: string[] = [];
 
   try {
-    // List objects (up to 3 pages to avoid timeout)
+    // List one page and process one file per request to stay within ESA KV/fetch limits.
     let continuationToken: string | undefined;
     let pages = 0;
     const allObjects: S3Object[] = [];
 
-    while (pages < 3) {
+    while (pages < 1) {
       const result = await s3ListObjects(s3Config, continuationToken);
       allObjects.push(...result.objects);
       continuationToken = result.nextToken;
@@ -324,8 +317,7 @@ async function runSync(dsId: string): Promise<{ success: boolean; message: strin
     // Get existing logs
     let existingLogs = await getCollection<any>(kv_logs, 'logs');
 
-    // Process new files (limit to 10 files per sync to avoid timeout)
-    const newObjects = allObjects.filter(o => !processedKeys.has(o.key) && o.size > 0).slice(0, 10);
+    const newObjects = allObjects.filter(o => !processedKeys.has(o.key) && o.size > 0).slice(0, 1);
 
     for (const obj of newObjects) {
       totalFiles++;
@@ -395,14 +387,11 @@ async function runSync(dsId: string): Promise<{ success: boolean; message: strin
     await setCollection(kv_logs, 'logs', existingLogs);
     await setCollection(kv_logs, 'ingestion_files', existingFiles);
 
-    // Update datasource status
-    const sources2 = await getCollection<any>(kv_config, 'datasources');
-    const idx2 = sources2.findIndex((s: any) => s.id === dsId);
-    if (idx2 >= 0) {
-      sources2[idx2].last_sync_status = allErrors.length > 0 ? 'partial' : 'success';
-      sources2[idx2].last_sync_at = new Date().toISOString();
-      sources2[idx2].updated_at = new Date().toISOString();
-      await setCollection(kv_config, 'datasources', sources2);
+    if (idx >= 0) {
+      sources[idx].last_sync_status = allErrors.length > 0 ? 'partial' : 'success';
+      sources[idx].last_sync_at = new Date().toISOString();
+      sources[idx].updated_at = new Date().toISOString();
+      await setCollection(kv_config, 'datasources', sources);
     }
 
     return {
@@ -412,13 +401,10 @@ async function runSync(dsId: string): Promise<{ success: boolean; message: strin
       recordsIngested: totalRecords,
     };
   } catch (e: any) {
-    // Update datasource status to failed
-    const sources3 = await getCollection<any>(kv_config, 'datasources');
-    const idx3 = sources3.findIndex((s: any) => s.id === dsId);
-    if (idx3 >= 0) {
-      sources3[idx3].last_sync_status = 'failed';
-      sources3[idx3].updated_at = new Date().toISOString();
-      await setCollection(kv_config, 'datasources', sources3);
+    if (idx >= 0) {
+      sources[idx].last_sync_status = 'failed';
+      sources[idx].updated_at = new Date().toISOString();
+      await setCollection(kv_config, 'datasources', sources);
     }
     return { success: false, message: `同步失败: ${e.message}`, filesProcessed: totalFiles, recordsIngested: totalRecords };
   }
@@ -1145,9 +1131,6 @@ async function handleStatusCodes(): Promise<Response> {
 export default {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-
-    // Ensure seed data on first request
-    await ensureSeedData();
 
     // ── Metrics ──
     if (url.pathname === '/api/metrics/overview' && request.method === 'GET') {
