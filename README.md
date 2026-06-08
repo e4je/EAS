@@ -1,69 +1,65 @@
-# Welcome to your Vesa project
+# ESA Log Analytics Platform
 
-## Project info
+This is an AI-assisted log analytics platform for Alibaba Cloud ESA (Edge Security Acceleration) Functions & Pages.
 
-## How can I edit this code?
+The project is designed to run as a React static Pages app with an ESA edge function API. The frontend is built into `dist`, while API routes such as `/api/metrics/overview`, `/api/logs/search`, and `/api/ingestion/run` are handled by `functions/index.ts`.
 
-There are several ways of editing your application.
-
-**Use Vesa**
-
-Start prompting in Vesa to make changes.
-
-Changes made via Vesa will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Vesa.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
+## Stack
 
 - Vite
-- TypeScript
 - React
-- shadcn-ui
+- TypeScript
 - Tailwind CSS
+- shadcn-style UI components
+- Recharts
+- Alibaba Cloud ESA Functions & Pages
+- ESA EdgeKV
 
-## How can I deploy this project?
+## ESA Build Settings
 
-Simply open Vesa and click on Share -> Publish.
+Use these settings in Alibaba Cloud ESA Functions & Pages:
 
-## Can I connect a custom domain to my Vesa project?
+```text
+Production branch: main
+Install command: corepack enable && corepack prepare pnpm@9.15.9 --activate && pnpm install --frozen-lockfile
+Build command: pnpm run build
+Root directory: /
+Static assets directory: dist
+Function file path: functions/index.ts
+Node.js version: 22.x
+```
 
-Yes, you can!
+No environment variables are required by default.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+The project also includes `esa.jsonc`:
+
+```jsonc
+{
+  "entry": "./functions/index.ts",
+  "assets": {
+    "directory": "./dist",
+    "notFoundStrategy": "singlePageApplication"
+  }
+}
+```
+
+## Build Locally
+
+```sh
+corepack enable
+corepack prepare pnpm@9.15.9 --activate
+pnpm install
+pnpm run build
+```
+
+Run tests:
+
+```sh
+pnpm test
+```
+
+## Notes
+
+- `/api/*` must be routed to ESA Functions. If API requests return HTML, check the ESA function file path and route/domain binding.
+- Log ingestion is implemented as incremental batches to stay within ESA edge runtime KV and fetch limits.
+- This repository was generated and iteratively refined with AI assistance.
