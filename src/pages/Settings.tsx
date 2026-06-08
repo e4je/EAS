@@ -39,6 +39,7 @@ export default function SettingsPage() {
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState<string | null>(null); // datasource_id being synced
+  const [syncProgress, setSyncProgress] = useState<{ batches: number; files: number; records: number } | null>(null);
 
   const { data: datasources, isLoading: loadingDS } = useApi<DataSourceConfig[]>(
     ['datasources'], '/api/datasources'
@@ -126,30 +127,55 @@ export default function SettingsPage() {
       return;
     }
     setSyncing(targetId);
+    setSyncProgress({ batches: 0, files: 0, records: 0 });
     try {
-      const res = await fetch('/api/ingestion/run', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ datasource_id: targetId }),
-      });
-      const data = await parseApiResponse<{ success: boolean; message: string; filesProcessed: number; recordsIngested: number }>(res);
-      if (data.success) {
-        toast.success('同步完成', { description: `${data.filesProcessed} 文件, ${data.recordsIngested} 条记录` });
-        queryClient.invalidateQueries({ queryKey: ['ingestion', 'files'] });
-        queryClient.invalidateQueries({ queryKey: ['datasources'] });
-        queryClient.invalidateQueries({ queryKey: ['metrics'] });
-        queryClient.invalidateQueries({ queryKey: ['logs'] });
-        queryClient.invalidateQueries({ queryKey: ['analytics'] });
-        queryClient.invalidateQueries({ queryKey: ['top'] });
-        queryClient.invalidateQueries({ queryKey: ['timeseries'] });
-        queryClient.invalidateQueries({ queryKey: ['status-codes'] });
+      const maxBatches = 50;
+      let batches = 0;
+      let totalFiles = 0;
+      let totalRecords = 0;
+      let hasMore = true;
+
+      while (hasMore && batches < maxBatches) {
+        const res = await fetch('/api/ingestion/run', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ datasource_id: targetId }),
+        });
+        const data = await parseApiResponse<{ success: boolean; message: string; filesProcessed: number; recordsIngested: number; hasMore: boolean }>(res);
+        if (!data.success) {
+          throw new Error(data.message);
+        }
+
+        batches++;
+        totalFiles += data.filesProcessed;
+        totalRecords += data.recordsIngested;
+        hasMore = data.hasMore;
+        setSyncProgress({ batches, files: totalFiles, records: totalRecords });
+
+        if (hasMore) {
+          await new Promise(resolve => setTimeout(resolve, 150));
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['ingestion', 'files'] });
+      queryClient.invalidateQueries({ queryKey: ['datasources'] });
+      queryClient.invalidateQueries({ queryKey: ['metrics'] });
+      queryClient.invalidateQueries({ queryKey: ['logs'] });
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['top'] });
+      queryClient.invalidateQueries({ queryKey: ['timeseries'] });
+      queryClient.invalidateQueries({ queryKey: ['status-codes'] });
+
+      if (hasMore) {
+        toast.warning('同步已暂停', { description: `已处理 ${batches} 批，${totalFiles} 文件，${totalRecords} 条记录。还有更多文件，请稍后继续。` });
       } else {
-        toast.error('同步失败', { description: data.message });
+        toast.success('同步完成', { description: `${batches} 批, ${totalFiles} 文件, ${totalRecords} 条记录` });
       }
     } catch (e: any) {
       toast.error('同步失败', { description: e.message });
     } finally {
       setSyncing(null);
+      setSyncProgress(null);
     }
   };
 
@@ -173,7 +199,7 @@ export default function SettingsPage() {
             className="flex items-center gap-1.5 h-8 px-3 rounded-md text-xs bg-primary text-primary-foreground font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <RefreshCw className={cn('w-3.5 h-3.5', syncing && 'animate-spin')} />
-            {syncing ? '同步中...' : '手动同步'}
+            {syncing ? '自动同步中...' : '自动同步'}
           </button>
         )}
       </div>
@@ -307,9 +333,16 @@ export default function SettingsPage() {
                     className="flex items-center gap-1 h-7 px-2.5 rounded-md text-xs bg-secondary text-muted-foreground border border-border hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                   >
                     <RefreshCw className={cn('w-3 h-3', syncing === ds.id && 'animate-spin')} />
-                    {syncing === ds.id ? '同步中' : '同步'}
+                    {syncing === ds.id ? '自动同步中' : '同步'}
                   </button>
                 </div>
+                {syncing === ds.id && syncProgress && (
+                  <div className="mt-3 pt-3 border-t border-border flex items-center gap-4 text-[10px] text-muted-foreground">
+                    <span>批次: {syncProgress.batches}</span>
+                    <span>文件: {syncProgress.files}</span>
+                    <span>记录: {syncProgress.records.toLocaleString()}</span>
+                  </div>
+                )}
               </div>
             ))
           )}

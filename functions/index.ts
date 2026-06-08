@@ -276,10 +276,18 @@ function parseEsaLogLine(line: string): Record<string, any> | null {
 
 // ── Sync Engine ──
 
-async function runSync(dsId: string): Promise<{ success: boolean; message: string; filesProcessed: number; recordsIngested: number }> {
+interface SyncResult {
+  success: boolean;
+  message: string;
+  filesProcessed: number;
+  recordsIngested: number;
+  hasMore: boolean;
+}
+
+async function runSync(dsId: string): Promise<SyncResult> {
   const sources = await getCollection<any>(kv_config, 'datasources');
   const ds = sources.find((s: any) => s.id === dsId);
-  if (!ds) return { success: false, message: '数据源不存在', filesProcessed: 0, recordsIngested: 0 };
+  if (!ds) return { success: false, message: '数据源不存在', filesProcessed: 0, recordsIngested: 0, hasMore: false };
 
   const s3Config: S3Config = {
     endpoint: ds.endpoint,
@@ -297,12 +305,12 @@ async function runSync(dsId: string): Promise<{ success: boolean; message: strin
   let allErrors: string[] = [];
 
   try {
-    // List one page and process one file per request to stay within ESA KV/fetch limits.
-    let continuationToken: string | undefined;
+    // Stay under ESA's per-request fetch limit: up to 3 list calls plus remaining object reads.
+    let continuationToken: string | undefined = ds.sync_cursor || undefined;
     let pages = 0;
     const allObjects: S3Object[] = [];
 
-    while (pages < 1) {
+    while (pages < 3) {
       const result = await s3ListObjects(s3Config, continuationToken);
       allObjects.push(...result.objects);
       continuationToken = result.nextToken;
@@ -317,7 +325,9 @@ async function runSync(dsId: string): Promise<{ success: boolean; message: strin
     // Get existing logs
     let existingLogs = await getCollection<any>(kv_logs, 'logs');
 
-    const newObjects = allObjects.filter(o => !processedKeys.has(o.key) && o.size > 0).slice(0, 1);
+    const fetchBudgetForObjects = Math.max(1, 4 - pages);
+    const newCandidates = allObjects.filter(o => !processedKeys.has(o.key) && o.size > 0);
+    const newObjects = newCandidates.slice(0, fetchBudgetForObjects);
 
     for (const obj of newObjects) {
       totalFiles++;
@@ -391,14 +401,20 @@ async function runSync(dsId: string): Promise<{ success: boolean; message: strin
       sources[idx].last_sync_status = allErrors.length > 0 ? 'partial' : 'success';
       sources[idx].last_sync_at = new Date().toISOString();
       sources[idx].updated_at = new Date().toISOString();
+      if (newCandidates.length <= fetchBudgetForObjects) {
+        sources[idx].sync_cursor = continuationToken || '';
+      }
       await setCollection(kv_config, 'datasources', sources);
     }
+
+    const hasMore = newCandidates.length > fetchBudgetForObjects || Boolean(continuationToken);
 
     return {
       success: true,
       message: `同步完成: ${totalFiles} 文件, ${totalRecords} 条记录${allErrors.length > 0 ? `, ${allErrors.length} 错误` : ''}`,
       filesProcessed: totalFiles,
       recordsIngested: totalRecords,
+      hasMore,
     };
   } catch (e: any) {
     if (idx >= 0) {
@@ -406,7 +422,7 @@ async function runSync(dsId: string): Promise<{ success: boolean; message: strin
       sources[idx].updated_at = new Date().toISOString();
       await setCollection(kv_config, 'datasources', sources);
     }
-    return { success: false, message: `同步失败: ${e.message}`, filesProcessed: totalFiles, recordsIngested: totalRecords };
+    return { success: false, message: `同步失败: ${e.message}`, filesProcessed: totalFiles, recordsIngested: totalRecords, hasMore: false };
   }
 }
 
