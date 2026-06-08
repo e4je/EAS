@@ -1052,7 +1052,10 @@ async function handlePerformanceAnalysis(): Promise<Response> {
 
 async function handleDataSources(): Promise<Response> {
   const sources = await getCollection<any>(kv_config, 'datasources');
-  return jsonResponse(sources);
+  return jsonResponse(sources.map(({ secret_access_key, ...source }: any) => ({
+    ...source,
+    secret_access_key: secret_access_key ? '********' : '',
+  })));
 }
 
 async function handleCreateDataSource(request: Request): Promise<Response> {
@@ -1068,7 +1071,8 @@ async function handleCreateDataSource(request: Request): Promise<Response> {
   };
   sources.push(newSource);
   await setCollection(kv_config, 'datasources', sources);
-  return jsonResponse(newSource, 201);
+  const { secret_access_key, ...safeSource } = newSource;
+  return jsonResponse({ ...safeSource, secret_access_key: secret_access_key ? '********' : '' }, 201);
 }
 
 async function handleTestDataSource(request: Request): Promise<Response> {
