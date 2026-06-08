@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Panel, StatusBadge } from '@/components/Dashboard';
 import { useApi } from '@/hooks/useApi';
 import { cn } from '@/lib/utils';
+import { parseApiResponse } from '@/lib/api';
 import type { DataSourceConfig, IngestionFile } from '@/lib/types';
 import { Database, Plus, CheckCircle, XCircle, Loader2, RefreshCw, Clock } from 'lucide-react';
 import { toast } from 'sonner';
@@ -80,6 +81,7 @@ export default function SettingsPage() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(formData),
       });
+      await parseApiResponse(res);
       if (res.ok) {
         toast.success('数据源已保存');
         setFormData(initialFormData);
@@ -106,7 +108,7 @@ export default function SettingsPage() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(formData),
       });
-      const data = await res.json();
+      const data = await parseApiResponse<{ success: boolean; message: string; latency_ms: number }>(res);
       if (data.success) {
         toast.success('连接测试成功', { description: `延迟: ${data.latency_ms}ms` });
       } else {
@@ -130,7 +132,7 @@ export default function SettingsPage() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ datasource_id: targetId }),
       });
-      const data = await res.json();
+      const data = await parseApiResponse<{ success: boolean; message: string; filesProcessed: number; recordsIngested: number }>(res);
       if (data.success) {
         toast.success('同步完成', { description: `${data.filesProcessed} 文件, ${data.recordsIngested} 条记录` });
         queryClient.invalidateQueries({ queryKey: ['ingestion', 'files'] });
