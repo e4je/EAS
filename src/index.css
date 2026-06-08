@@ -1,0 +1,215 @@
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  ESA Log Analytics Platform — Dark SOC Theme
+  Deep space observatory aesthetic for professional data operations.
+*/
+
+@theme inline {
+  /* Light theme (not primary, but available) */
+  --color-background: hsl(220 20% 97%);
+  --color-foreground: hsl(224 20% 12%);
+
+  --color-card: hsl(0 0% 100%);
+  --color-card-foreground: hsl(224 20% 12%);
+
+  --color-popover: hsl(0 0% 100%);
+  --color-popover-foreground: hsl(224 20% 12%);
+
+  --color-primary: hsl(188 80% 40%);
+  --color-primary-foreground: hsl(0 0% 100%);
+
+  --color-secondary: hsl(220 14% 96%);
+  --color-secondary-foreground: hsl(224 20% 12%);
+
+  --color-muted: hsl(220 14% 96%);
+  --color-muted-foreground: hsl(220 10% 46%);
+
+  --color-accent: hsl(188 80% 96%);
+  --color-accent-foreground: hsl(188 80% 30%);
+
+  --color-destructive: hsl(0 72% 56%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+
+  --color-border: hsl(220 13% 91%);
+  --color-input: hsl(220 13% 91%);
+  --color-ring: hsl(188 80% 40%);
+
+  --color-sidebar: hsl(220 14% 98%);
+  --color-sidebar-foreground: hsl(224 10% 26%);
+  --color-sidebar-primary: hsl(188 80% 40%);
+  --color-sidebar-primary-foreground: hsl(0 0% 100%);
+  --color-sidebar-accent: hsl(220 14% 94%);
+  --color-sidebar-accent-foreground: hsl(224 20% 12%);
+  --color-sidebar-border: hsl(220 13% 91%);
+  --color-sidebar-ring: hsl(188 80% 40%);
+
+  --color-surface: hsl(0 0% 100%);
+  --color-surface-elevated: hsl(220 14% 98%);
+
+  --color-success: hsl(152 60% 40%);
+  --color-success-foreground: hsl(0 0% 100%);
+  --color-warning: hsl(38 92% 50%);
+  --color-warning-foreground: hsl(0 0% 0%);
+  --color-info: hsl(200 80% 50%);
+  --color-info-foreground: hsl(0 0% 100%);
+
+  --color-chart-1: hsl(188 80% 50%);
+  --color-chart-2: hsl(152 60% 45%);
+  --color-chart-3: hsl(38 92% 55%);
+  --color-chart-4: hsl(0 72% 56%);
+  --color-chart-5: hsl(280 60% 60%);
+  --color-chart-6: hsl(200 80% 55%);
+  --color-chart-7: hsl(50 90% 55%);
+  --color-chart-8: hsl(340 70% 55%);
+
+  --radius: 0.375rem;
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 1px);
+  --radius-sm: calc(var(--radius) - 2px);
+
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-slide-in-right: slide-in-right 0.3s ease-out;
+  --animate-slide-in-up: slide-in-up 0.3s ease-out;
+  --animate-glow-pulse: glow-pulse 2s ease-in-out infinite;
+
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slide-in-right {
+    from { opacity: 0; transform: translateX(16px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes slide-in-up {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes glow-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0); }
+    50% { box-shadow: 0 0 20px 2px rgba(6, 182, 212, 0.15); }
+  }
+}
+
+.dark {
+  /* Deep space SOC theme — primary experience */
+  --color-background: hsl(225 40% 6%);
+  --color-foreground: hsl(210 20% 96%);
+
+  --color-card: hsl(222 30% 10%);
+  --color-card-foreground: hsl(210 20% 96%);
+
+  --color-popover: hsl(222 30% 10%);
+  --color-popover-foreground: hsl(210 20% 96%);
+
+  --color-primary: hsl(188 85% 45%);
+  --color-primary-foreground: hsl(225 40% 6%);
+
+  --color-secondary: hsl(222 25% 14%);
+  --color-secondary-foreground: hsl(210 20% 96%);
+
+  --color-muted: hsl(222 25% 14%);
+  --color-muted-foreground: hsl(215 16% 56%);
+
+  --color-accent: hsl(222 25% 16%);
+  --color-accent-foreground: hsl(188 85% 55%);
+
+  --color-destructive: hsl(0 68% 50%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+
+  --color-border: hsl(222 25% 16%);
+  --color-input: hsl(222 25% 16%);
+  --color-ring: hsl(188 85% 45%);
+
+  --color-sidebar: hsl(225 35% 8%);
+  --color-sidebar-foreground: hsl(210 16% 76%);
+  --color-sidebar-primary: hsl(188 85% 45%);
+  --color-sidebar-primary-foreground: hsl(225 40% 6%);
+  --color-sidebar-accent: hsl(225 30% 12%);
+  --color-sidebar-accent-foreground: hsl(210 20% 96%);
+  --color-sidebar-border: hsl(225 25% 14%);
+  --color-sidebar-ring: hsl(188 85% 45%);
+
+  --color-surface: hsl(222 30% 10%);
+  --color-surface-elevated: hsl(222 28% 13%);
+
+  --color-success: hsl(152 60% 42%);
+  --color-success-foreground: hsl(0 0% 100%);
+  --color-warning: hsl(38 92% 50%);
+  --color-warning-foreground: hsl(0 0% 0%);
+  --color-info: hsl(200 80% 55%);
+  --color-info-foreground: hsl(0 0% 100%);
+
+  --color-chart-1: hsl(188 85% 50%);
+  --color-chart-2: hsl(152 60% 45%);
+  --color-chart-3: hsl(38 92% 55%);
+  --color-chart-4: hsl(0 68% 50%);
+  --color-chart-5: hsl(280 60% 60%);
+  --color-chart-6: hsl(200 80% 55%);
+  --color-chart-7: hsl(50 90% 55%);
+  --color-chart-8: hsl(340 70% 55%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(222 25% 20%);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(222 25% 28%);
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+  .text-mono {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    letter-spacing: -0.01em;
+  }
+  .panel-glow {
+    box-shadow: 0 0 0 1px hsl(222 25% 16%), 0 4px 24px -4px rgba(0, 0, 0, 0.4);
+  }
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+}

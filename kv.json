@@ -1,0 +1,13 @@
+{
+  "esa_logs": {
+    "logs": [],
+    "ingestion_files": []
+  },
+  "esa_config": {
+    "datasources": []
+  },
+  "esa_alerts": {
+    "rules": [],
+    "events": []
+  }
+}
