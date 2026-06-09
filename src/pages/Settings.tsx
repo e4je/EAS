@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Panel, StatusBadge } from '@/components/Dashboard';
 import { useApi } from '@/hooks/useApi';
 import { cn } from '@/lib/utils';
-import { parseApiResponse } from '@/lib/api';
+import { apiFetch, parseApiResponse } from '@/lib/api';
 import type { DataSourceConfig, IngestionFile } from '@/lib/types';
 import { Database, Plus, CheckCircle, XCircle, Loader2, RefreshCw, Clock } from 'lucide-react';
 import { toast } from 'sonner';
@@ -77,7 +77,7 @@ export default function SettingsPage() {
 
     setSaving(true);
     try {
-      const res = await fetch('/api/datasources', {
+      const res = await apiFetch('/api/datasources', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(formData),
@@ -104,7 +104,7 @@ export default function SettingsPage() {
       return;
     }
     try {
-      const res = await fetch('/api/datasources/test', {
+      const res = await apiFetch('/api/datasources/test', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(formData),
@@ -136,7 +136,7 @@ export default function SettingsPage() {
       let hasMore = true;
 
       while (hasMore && batches < maxBatches) {
-        const res = await fetch('/api/ingestion/run', {
+        const res = await apiFetch('/api/ingestion/run', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ datasource_id: targetId }),

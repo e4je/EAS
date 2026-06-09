@@ -1,3 +1,19 @@
+export function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+  const headers = new Headers(init.headers);
+  if (!headers.has('accept')) {
+    headers.set('accept', 'application/json');
+  }
+  if (!headers.has('x-requested-with')) {
+    headers.set('x-requested-with', 'fetch');
+  }
+
+  return fetch(input, {
+    ...init,
+    cache: init.cache || 'no-store',
+    headers,
+  });
+}
+
 export async function parseApiResponse<T>(res: Response): Promise<T> {
   const contentType = res.headers.get('content-type') || '';
   const text = await res.text();
@@ -5,7 +21,7 @@ export async function parseApiResponse<T>(res: Response): Promise<T> {
   if (!contentType.includes('application/json')) {
     const looksLikeHtml = text.trimStart().startsWith('<!DOCTYPE') || text.trimStart().startsWith('<html');
     const hint = looksLikeHtml
-      ? 'API 请求返回了页面 HTML，通常是 ESA Functions 没有接管 /api 路由。请检查函数文件路径是否配置为 functions/index.ts。'
+      ? 'API 请求返回了页面 HTML，通常是 /api 请求被静态页面 fallback 或边缘缓存接管了。请检查 ESA Functions 的函数文件路径为 functions/index.ts，并确认 /api/* 路由优先于静态资源。'
       : text.slice(0, 200);
     throw new Error(hint);
   }

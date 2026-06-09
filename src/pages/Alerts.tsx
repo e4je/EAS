@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Panel, Skeleton, StatusBadge } from '@/components/Dashboard';
 import { useApi } from '@/hooks/useApi';
 import { cn } from '@/lib/utils';
+import { apiFetch, parseApiResponse } from '@/lib/api';
 import type { AlertRule, AlertEvent } from '@/lib/types';
 import { Bell, Plus, AlertTriangle, Info, Shield } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -31,13 +32,15 @@ export default function AlertsPage() {
   const activeEvents = (events || []).filter(e => e.status === 'active');
 
   const toggleRule = async (rule: AlertRule) => {
-    const res = await fetch(`/api/alerts/rules/${rule.id}`, {
+    const res = await apiFetch(`/api/alerts/rules/${rule.id}`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ enabled: !rule.enabled }),
     });
-    if (!res.ok) {
-      toast.error('规则状态更新失败');
+    try {
+      await parseApiResponse(res);
+    } catch (e: any) {
+      toast.error('规则状态更新失败', { description: e.message });
       return;
     }
     await queryClient.invalidateQueries({ queryKey: ['alerts', 'rules'] });
@@ -62,7 +65,7 @@ export default function AlertsPage() {
 
     setSavingRule(true);
     try {
-      const res = await fetch('/api/alerts/rules', {
+      const res = await apiFetch('/api/alerts/rules', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -78,7 +81,7 @@ export default function AlertsPage() {
         }),
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await parseApiResponse(res);
       toast.success('告警规则已创建');
       setRuleForm(initialRuleForm);
       setShowRuleForm(false);
