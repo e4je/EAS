@@ -77,6 +77,11 @@ export interface DataSourceConfig {
   updated_at: string;
   last_sync_status: string;
   last_sync_at: string;
+  sync_cursor?: string;
+  stats?: {
+    logs: number;
+    files: number;
+  };
 }
 
 export interface AlertRule {

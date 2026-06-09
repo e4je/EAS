@@ -9,6 +9,7 @@ import { formatDuration } from '@/lib/mock-data';
 
 export default function LogSearchPage() {
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [selectedLog, setSelectedLog] = useState<LogEvent | null>(null);
   const [showFilters, setShowFilters] = useState(true);
 
@@ -17,17 +18,17 @@ export default function LogSearchPage() {
 
   const filterParams = new URLSearchParams();
   filterParams.set('page', String(page));
-  filterParams.set('page_size', '20');
+  filterParams.set('page_size', String(pageSize));
   Object.entries(filters).forEach(([k, v]) => { if (v) filterParams.set(k, v); });
 
   const { data: searchResult, isLoading } = useApi<{ logs: LogEvent[]; total: number; query_time_ms: number }>(
-    ['logs', 'search', page, ...Object.entries(filters).flat()],
+    ['logs', 'search', page, pageSize, ...Object.entries(filters).flat()],
     `/api/logs/search?${filterParams}`
   );
 
   const logs = searchResult?.logs || [];
   const total = searchResult?.total || 0;
-  const totalPages = Math.ceil(total / 20);
+  const totalPages = Math.ceil(total / pageSize);
 
   const updateFilter = (key: string, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -53,6 +54,18 @@ export default function LogSearchPage() {
               查询耗时 {searchResult.query_time_ms}ms · 共 {total} 条
             </span>
           )}
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(1);
+            }}
+            className="h-7 px-2 text-xs bg-secondary border border-border rounded-md text-muted-foreground"
+          >
+            <option value={20}>20/页</option>
+            <option value={50}>50/页</option>
+            <option value={100}>100/页</option>
+          </select>
           <button
             onClick={() => setShowFilters(!showFilters)}
             className="flex items-center gap-1 h-7 px-2 rounded-md text-xs bg-secondary text-muted-foreground border border-border hover:text-foreground transition-colors"

@@ -325,6 +325,11 @@ export default function SettingsPage() {
                       />
                       <span className="text-[10px] text-muted-foreground">格式: {ds.format}</span>
                       <span className="text-[10px] text-muted-foreground">时区: {ds.timezone}</span>
+                      {ds.stats && (
+                        <span className="text-[10px] text-muted-foreground">
+                          已入库: {ds.stats.files} 文件 / {ds.stats.logs.toLocaleString()} 条
+                        </span>
+                      )}
                     </div>
                   </div>
                   <button
@@ -351,7 +356,7 @@ export default function SettingsPage() {
 
       {/* Ingestion Tab */}
       {activeTab === 'ingestion' && (
-        <Panel title="同步文件状态" subtitle="最近处理的日志文件">
+        <Panel title="同步文件状态" subtitle={`最近处理的日志文件${ingestionFiles ? ` · 共 ${ingestionFiles.length} 个文件` : ''}`}>
           {loadingIngestion ? (
             <div className="space-y-2">
               {Array.from({ length: 5 }).map((_, i) => (

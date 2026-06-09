@@ -326,7 +326,9 @@ async function runSync(dsId: string): Promise<SyncResult> {
     let existingLogs = await getCollection<any>(kv_logs, 'logs');
 
     const fetchBudgetForObjects = Math.max(1, 4 - pages);
-    const newCandidates = allObjects.filter(o => !processedKeys.has(o.key) && o.size > 0);
+    const newCandidates = allObjects
+      .filter(o => !processedKeys.has(o.key) && o.size > 0)
+      .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
     const newObjects = newCandidates.slice(0, fetchBudgetForObjects);
 
     for (const obj of newObjects) {
@@ -401,7 +403,7 @@ async function runSync(dsId: string): Promise<SyncResult> {
       sources[idx].last_sync_status = allErrors.length > 0 ? 'partial' : 'success';
       sources[idx].last_sync_at = new Date().toISOString();
       sources[idx].updated_at = new Date().toISOString();
-      if (newCandidates.length <= fetchBudgetForObjects) {
+      if (newCandidates.length <= fetchBudgetForObjects || totalFiles === 0) {
         sources[idx].sync_cursor = continuationToken || '';
       }
       await setCollection(kv_config, 'datasources', sources);
@@ -1052,9 +1054,15 @@ async function handlePerformanceAnalysis(): Promise<Response> {
 
 async function handleDataSources(): Promise<Response> {
   const sources = await getCollection<any>(kv_config, 'datasources');
+  const logs = await getCollection<any>(kv_logs, 'logs');
+  const files = await getCollection<any>(kv_logs, 'ingestion_files');
   return jsonResponse(sources.map(({ secret_access_key, ...source }: any) => ({
     ...source,
     secret_access_key: secret_access_key ? '********' : '',
+    stats: {
+      logs: logs.length,
+      files: files.length,
+    },
   })));
 }
 
