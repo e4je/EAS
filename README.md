@@ -37,8 +37,7 @@ The project also includes `esa.jsonc`:
 {
   "entry": "./functions/index.ts",
   "assets": {
-    "directory": "./dist",
-    "notFoundStrategy": "singlePageApplication"
+    "directory": "./dist"
   }
 }
 ```
@@ -60,6 +59,6 @@ pnpm test
 
 ## Notes
 
-- `/api/*` must be routed to ESA Functions. If API requests return HTML, check the ESA function file path and route/domain binding.
+- `/api/*` must be routed to ESA Functions. Keep `assets.notFoundStrategy` unset so `/api/*` cannot be swallowed by SPA fallback. The React app uses hash routing (`/#/...`) for client-side pages.
 - Log ingestion is implemented as incremental batches to stay within ESA edge runtime KV and fetch limits.
 - This repository was generated and iteratively refined with AI assistance.
