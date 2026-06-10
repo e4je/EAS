@@ -1,13 +1,47 @@
-// ESA Log Analytics Platform — Edge Routine API
-// Handles all backend API routes for the log analytics platform
+// ESA Log Analytics Platform API
+// Handles all backend API routes for the log analytics platform.
 
-// ── KV Storage Setup ──
-const kv_logs = new EdgeKV({ namespace: 'esa_logs' });
-const kv_config = new EdgeKV({ namespace: 'esa_config' });
-const kv_alerts = new EdgeKV({ namespace: 'esa_alerts' });
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+
+// ── File-backed Storage Setup ──
+interface KVStore {
+  get(key: string): Promise<string | null>;
+  put(key: string, value: string): Promise<void>;
+}
+
+class FileKV implements KVStore {
+  private readonly dir: string;
+
+  constructor(namespace: string) {
+    this.dir = path.join(process.env.DATA_DIR || path.resolve(process.cwd(), '.data'), namespace);
+  }
+
+  async get(key: string): Promise<string | null> {
+    try {
+      return await readFile(this.filePath(key), 'utf8');
+    } catch (error: any) {
+      if (error?.code === 'ENOENT') return null;
+      throw error;
+    }
+  }
+
+  async put(key: string, value: string): Promise<void> {
+    await mkdir(this.dir, { recursive: true });
+    await writeFile(this.filePath(key), value, 'utf8');
+  }
+
+  private filePath(key: string): string {
+    return path.join(this.dir, `${key.replace(/[^a-zA-Z0-9_.-]/g, '_')}.json`);
+  }
+}
+
+const kv_logs = new FileKV('logs');
+const kv_config = new FileKV('config');
+const kv_alerts = new FileKV('alerts');
 
 // ── Helper: Defensive collection read ──
-async function getCollection<T>(kv: typeof kv_logs, key: string): Promise<T[]> {
+async function getCollection<T>(kv: KVStore, key: string): Promise<T[]> {
   const data = await kv.get(key);
   if (!data) return [];
   try {
@@ -18,7 +52,7 @@ async function getCollection<T>(kv: typeof kv_logs, key: string): Promise<T[]> {
   }
 }
 
-async function setCollection<T>(kv: typeof kv_logs, key: string, data: T[]): Promise<void> {
+async function setCollection<T>(kv: KVStore, key: string, data: T[]): Promise<void> {
   await kv.put(key, JSON.stringify(data));
 }
 

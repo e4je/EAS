@@ -10,6 +10,8 @@ lerna-debug.log*
 node_modules
 .pnpm-store
 .dev
+.data
+build
 dist
 dist-ssr
 *.local
@@ -20,6 +22,8 @@ src/**/*.js
 src/**/*.d.ts
 functions/**/*.js
 functions/**/*.d.ts
+server/**/*.js
+server/**/*.d.ts
 vite.config.js
 vite.config.d.ts
 vitest.config.js

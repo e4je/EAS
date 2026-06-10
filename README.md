@@ -1,8 +1,8 @@
-# ESA Log Analytics Platform
+# EAS Log Analytics Platform
 
-This is an AI-assisted log analytics platform for Alibaba Cloud ESA (Edge Security Acceleration) Functions & Pages.
+This is an AI-assisted log analytics platform for Alibaba Cloud ESA access logs.
 
-The project is designed to run as a React static Pages app with an ESA edge function API. The frontend is built into `dist`, while API routes such as `/api/metrics/overview`, `/api/logs/search`, and `/api/ingestion/run` are handled by `functions/index.ts`.
+The project now runs as a self-hosted Node.js application. The React frontend is built into `dist`, while the local Node server handles `/api/*` and serves the static frontend files.
 
 ## Stack
 
@@ -12,53 +12,93 @@ The project is designed to run as a React static Pages app with an ESA edge func
 - Tailwind CSS
 - shadcn-style UI components
 - Recharts
-- Alibaba Cloud ESA Functions & Pages
-- ESA EdgeKV
+- Node.js HTTP server
+- File-backed local storage
 
-## ESA Build Settings
+## Local Build
 
-Use these settings in Alibaba Cloud ESA Functions & Pages:
-
-```text
-Production branch: main
-Install command: corepack enable && corepack prepare pnpm@9.15.9 --activate && pnpm install --frozen-lockfile
-Build command: pnpm run build
-Root directory: /
-Static assets directory: dist
-Function file path: functions/index.ts
-Node.js version: 22.x
-```
-
-No environment variables are required by default.
-
-The project also includes `esa.jsonc`:
-
-```jsonc
-{
-  "entry": "./functions/index.ts",
-  "assets": {
-    "directory": "./dist"
-  }
-}
-```
-
-## Build Locally
+Use Node.js 22.x.
 
 ```sh
 corepack enable
 corepack prepare pnpm@9.15.9 --activate
 pnpm install
 pnpm run build
+pnpm start
 ```
 
-Run tests:
+The app listens on:
+
+```text
+http://localhost:3000
+```
+
+Set a custom port with:
 
 ```sh
+PORT=8080 pnpm start
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:PORT=8080
+pnpm start
+```
+
+## Development
+
+Run the API server:
+
+```sh
+pnpm run dev:api
+```
+
+Run the Vite frontend in another terminal:
+
+```sh
+pnpm run dev
+```
+
+The Vite dev server proxies `/api/*` to `http://127.0.0.1:3000`.
+
+## Data Storage
+
+Runtime data is stored in `.data/` by default:
+
+```text
+.data/config/datasources.json
+.data/logs/logs.json
+.data/logs/ingestion_files.json
+.data/alerts/rules.json
+.data/alerts/events.json
+```
+
+This directory is ignored by git because datasource configuration can contain access keys.
+
+To store data elsewhere:
+
+```sh
+DATA_DIR=/var/lib/eas pnpm start
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:DATA_DIR="D:\eas-data"
+pnpm start
+```
+
+## Useful Commands
+
+```sh
+pnpm run build
+pnpm start
 pnpm test
 ```
 
 ## Notes
 
-- `/api/*` must be routed to ESA Functions. Keep `assets.notFoundStrategy` unset so `/api/*` cannot be swallowed by SPA fallback. The React app uses hash routing (`/#/...`) for client-side pages.
-- Log ingestion is implemented as incremental batches to stay within ESA edge runtime KV and fetch limits.
-- This repository was generated and iteratively refined with AI assistance.
+- `/api/*` is no longer handled by Alibaba Cloud ESA Functions.
+- The server has no built-in authentication yet. Do not expose it publicly without putting it behind a trusted reverse proxy, VPN, or auth layer.
+- Log ingestion is no longer constrained by ESA edge runtime KV and fetch call limits, but very large datasets may still require pagination, database storage, or background jobs.

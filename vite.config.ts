@@ -1,12 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import tailwindcss from "@tailwindcss/vite";
-import vesaErrorReporter from "./.vesa/vite-error-plugin.js";
-import vesaDesignMode from "./.vesa/vite-design-mode-plugin.js";
 import path from "path";
-import fs from "fs";
-
-const hasEsaConfig = fs.existsSync(path.resolve(__dirname, "esa.jsonc"));
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -16,18 +11,14 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
-    ...(hasEsaConfig
-      ? {
-          proxy: {
-            "/api": {
-              target: "http://127.0.0.1:18080",
-              changeOrigin: true,
-            },
-          },
-        }
-      : {}),
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:3000",
+        changeOrigin: true,
+      },
+    },
   },
-  plugins: [vesaErrorReporter(), vesaDesignMode(), tailwindcss(), react()].filter(Boolean),
+  plugins: [tailwindcss(), react()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -35,6 +26,5 @@ export default defineConfig(({ mode }) => ({
   },
   test: {
     environment: "jsdom",
-    setupFiles: "./src/test/setup.ts",
   },
 }));

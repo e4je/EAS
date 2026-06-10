@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "dev:api": "tsc -p tsconfig.server.json && node build/server/server/index.js",
+    "build": "vite build && tsc -p tsconfig.server.json",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
+    "start": "node build/server/server/index.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -72,7 +74,6 @@
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react-swc": "^3.11.0",
-    "esa-cli": "1.0.10",
     "eslint": "^9.32.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
