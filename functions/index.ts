@@ -318,6 +318,34 @@ interface SyncResult {
   hasMore: boolean;
 }
 
+interface IngestionJob {
+  id: string;
+  datasource_id: string;
+  status: 'running' | 'success' | 'failed' | 'paused';
+  message: string;
+  batches: number;
+  filesProcessed: number;
+  recordsIngested: number;
+  hasMore: boolean;
+  started_at: string;
+  updated_at: string;
+  finished_at: string;
+}
+
+const ingestionJobs = new Map<string, IngestionJob>();
+
+async function setDataSourceSyncStatus(dsId: string, status: string): Promise<void> {
+  const sources = await getCollection<any>(kv_config, 'datasources');
+  const idx = sources.findIndex((s: any) => s.id === dsId);
+  if (idx === -1) return;
+  sources[idx].last_sync_status = status;
+  sources[idx].updated_at = new Date().toISOString();
+  if (status === 'success' || status === 'failed' || status === 'partial') {
+    sources[idx].last_sync_at = new Date().toISOString();
+  }
+  await setCollection(kv_config, 'datasources', sources);
+}
+
 async function runSync(dsId: string): Promise<SyncResult> {
   const sources = await getCollection<any>(kv_config, 'datasources');
   const ds = sources.find((s: any) => s.id === dsId);
@@ -339,12 +367,12 @@ async function runSync(dsId: string): Promise<SyncResult> {
   let allErrors: string[] = [];
 
   try {
-    // Stay under ESA's per-request fetch limit: up to 3 list calls plus remaining object reads.
+    // Process a bounded batch so a background job can report progress between batches.
     let continuationToken: string | undefined = ds.sync_cursor || undefined;
     let pages = 0;
     const allObjects: S3Object[] = [];
 
-    while (pages < 3) {
+    while (pages < 10) {
       const result = await s3ListObjects(s3Config, continuationToken);
       allObjects.push(...result.objects);
       continuationToken = result.nextToken;
@@ -359,7 +387,7 @@ async function runSync(dsId: string): Promise<SyncResult> {
     // Get existing logs
     let existingLogs = await getCollection<any>(kv_logs, 'logs');
 
-    const fetchBudgetForObjects = Math.max(1, 4 - pages);
+    const fetchBudgetForObjects = 20;
     const newCandidates = allObjects
       .filter(o => !processedKeys.has(o.key) && o.size > 0)
       .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
@@ -459,6 +487,72 @@ async function runSync(dsId: string): Promise<SyncResult> {
       await setCollection(kv_config, 'datasources', sources);
     }
     return { success: false, message: `同步失败: ${e.message}`, filesProcessed: totalFiles, recordsIngested: totalRecords, hasMore: false };
+  }
+}
+
+function createIngestionJob(dsId: string): IngestionJob {
+  const now = new Date().toISOString();
+  return {
+    id: `job-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    datasource_id: dsId,
+    status: 'running',
+    message: '同步已开始',
+    batches: 0,
+    filesProcessed: 0,
+    recordsIngested: 0,
+    hasMore: true,
+    started_at: now,
+    updated_at: now,
+    finished_at: '',
+  };
+}
+
+function startIngestionJob(dsId: string): IngestionJob {
+  const activeJob = Array.from(ingestionJobs.values())
+    .find(job => job.datasource_id === dsId && job.status === 'running');
+  if (activeJob) return activeJob;
+
+  const job = createIngestionJob(dsId);
+  ingestionJobs.set(job.id, job);
+  void runIngestionJob(job);
+  return job;
+}
+
+async function runIngestionJob(job: IngestionJob): Promise<void> {
+  const maxBatches = 500;
+  await setDataSourceSyncStatus(job.datasource_id, 'processing');
+
+  try {
+    while (job.hasMore && job.batches < maxBatches) {
+      const result = await runSync(job.datasource_id);
+      job.batches++;
+      job.filesProcessed += result.filesProcessed;
+      job.recordsIngested += result.recordsIngested;
+      job.hasMore = result.hasMore;
+      job.message = result.message;
+      job.updated_at = new Date().toISOString();
+
+      if (!result.success) {
+        throw new Error(result.message);
+      }
+
+      if (job.hasMore) {
+        await setDataSourceSyncStatus(job.datasource_id, 'processing');
+      }
+    }
+
+    job.status = job.hasMore ? 'paused' : 'success';
+    job.message = job.hasMore
+      ? `同步已暂停: 已处理 ${job.batches} 批，还有更多文件`
+      : `同步完成: ${job.filesProcessed} 文件, ${job.recordsIngested} 条记录`;
+    await setDataSourceSyncStatus(job.datasource_id, job.status === 'success' ? 'success' : 'partial');
+  } catch (e: any) {
+    job.status = 'failed';
+    job.message = e.message || '同步失败';
+    await setDataSourceSyncStatus(job.datasource_id, 'failed');
+  } finally {
+    job.updated_at = new Date().toISOString();
+    job.finished_at = job.status === 'running' ? '' : job.updated_at;
   }
 }
 
@@ -1140,8 +1234,25 @@ async function handleIngestionRun(request: Request): Promise<Response> {
   const body = await request.json();
   const dsId = body.datasource_id;
   if (!dsId) return jsonResponse({ success: false, message: '请指定数据源 ID' }, 400);
-  const result = await runSync(dsId);
-  return jsonResponse(result, result.success ? 200 : 400);
+  const sources = await getCollection<any>(kv_config, 'datasources');
+  if (!sources.some((s: any) => s.id === dsId)) {
+    return jsonResponse({ success: false, message: '数据源不存在' }, 404);
+  }
+
+  const job = startIngestionJob(dsId);
+  return jsonResponse({ success: true, message: '同步任务已在后台启动', job }, 202);
+}
+
+async function handleIngestionJobs(): Promise<Response> {
+  const jobs = Array.from(ingestionJobs.values())
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+  return jsonResponse(jobs);
+}
+
+async function handleIngestionJob(id: string): Promise<Response> {
+  const job = ingestionJobs.get(id);
+  if (!job) return jsonResponse({ error: 'Job not found' }, 404);
+  return jsonResponse(job);
 }
 
 async function handleAlertRules(): Promise<Response> {
@@ -1251,6 +1362,13 @@ export default {
     // ── Ingestion ──
     if (url.pathname === '/api/ingestion/files' && request.method === 'GET') {
       return handleIngestionFiles();
+    }
+    if (url.pathname === '/api/ingestion/jobs' && request.method === 'GET') {
+      return handleIngestionJobs();
+    }
+    if (url.pathname.match(/^\/api\/ingestion\/jobs\/.+$/) && request.method === 'GET') {
+      const id = url.pathname.split('/').pop()!;
+      return handleIngestionJob(id);
     }
     if (url.pathname === '/api/ingestion/run' && request.method === 'POST') {
       return handleIngestionRun(request);

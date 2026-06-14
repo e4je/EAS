@@ -62,6 +62,20 @@ export interface IngestionFile {
   finished_at: string;
 }
 
+export interface IngestionJob {
+  id: string;
+  datasource_id: string;
+  status: 'running' | 'success' | 'failed' | 'paused';
+  message: string;
+  batches: number;
+  filesProcessed: number;
+  recordsIngested: number;
+  hasMore: boolean;
+  started_at: string;
+  updated_at: string;
+  finished_at: string;
+}
+
 export interface DataSourceConfig {
   id: string;
   name: string;

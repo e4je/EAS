@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Panel, StatusBadge } from '@/components/Dashboard';
 import { useApi } from '@/hooks/useApi';
 import { cn } from '@/lib/utils';
 import { apiFetch, parseApiResponse } from '@/lib/api';
-import type { DataSourceConfig, IngestionFile } from '@/lib/types';
+import type { DataSourceConfig, IngestionFile, IngestionJob } from '@/lib/types';
 import { Database, Plus, CheckCircle, XCircle, Loader2, RefreshCw, Clock } from 'lucide-react';
 import { toast } from 'sonner';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 interface FormData {
   name: string;
@@ -38,8 +38,6 @@ export default function SettingsPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [saving, setSaving] = useState(false);
-  const [syncing, setSyncing] = useState<string | null>(null); // datasource_id being synced
-  const [syncProgress, setSyncProgress] = useState<{ batches: number; files: number; records: number } | null>(null);
 
   const { data: datasources, isLoading: loadingDS } = useApi<DataSourceConfig[]>(
     ['datasources'], '/api/datasources'
@@ -47,6 +45,33 @@ export default function SettingsPage() {
   const { data: ingestionFiles, isLoading: loadingIngestion } = useApi<IngestionFile[]>(
     ['ingestion', 'files'], '/api/ingestion/files'
   );
+  const { data: ingestionJobs } = useQuery<IngestionJob[]>({
+    queryKey: ['ingestion', 'jobs'],
+    queryFn: async () => {
+      const res = await apiFetch('/api/ingestion/jobs');
+      return parseApiResponse<IngestionJob[]>(res);
+    },
+    refetchInterval: 1500,
+  });
+
+  const activeJob = (ingestionJobs || []).find(job => job.status === 'running') || null;
+  const getJobForDataSource = (dsId: string) => (ingestionJobs || []).find(job => job.datasource_id === dsId);
+  const lastSettledJobRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const settledJob = (ingestionJobs || []).find(job => job.status !== 'running');
+    if (!settledJob || lastSettledJobRef.current === `${settledJob.id}:${settledJob.updated_at}`) return;
+
+    lastSettledJobRef.current = `${settledJob.id}:${settledJob.updated_at}`;
+    queryClient.invalidateQueries({ queryKey: ['ingestion', 'files'] });
+    queryClient.invalidateQueries({ queryKey: ['datasources'] });
+    queryClient.invalidateQueries({ queryKey: ['metrics'] });
+    queryClient.invalidateQueries({ queryKey: ['logs'] });
+    queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    queryClient.invalidateQueries({ queryKey: ['top'] });
+    queryClient.invalidateQueries({ queryKey: ['timeseries'] });
+    queryClient.invalidateQueries({ queryKey: ['status-codes'] });
+  }, [ingestionJobs, queryClient]);
 
   const updateField = (field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -126,56 +151,23 @@ export default function SettingsPage() {
       toast.error('没有可用的数据源，请先添加数据源');
       return;
     }
-    setSyncing(targetId);
-    setSyncProgress({ batches: 0, files: 0, records: 0 });
     try {
-      const maxBatches = 50;
-      let batches = 0;
-      let totalFiles = 0;
-      let totalRecords = 0;
-      let hasMore = true;
-
-      while (hasMore && batches < maxBatches) {
-        const res = await apiFetch('/api/ingestion/run', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ datasource_id: targetId }),
-        });
-        const data = await parseApiResponse<{ success: boolean; message: string; filesProcessed: number; recordsIngested: number; hasMore: boolean }>(res);
-        if (!data.success) {
-          throw new Error(data.message);
-        }
-
-        batches++;
-        totalFiles += data.filesProcessed;
-        totalRecords += data.recordsIngested;
-        hasMore = data.hasMore;
-        setSyncProgress({ batches, files: totalFiles, records: totalRecords });
-
-        if (hasMore) {
-          await new Promise(resolve => setTimeout(resolve, 150));
-        }
+      const res = await apiFetch('/api/ingestion/run', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ datasource_id: targetId }),
+      });
+      const data = await parseApiResponse<{ success: boolean; message: string; job: IngestionJob }>(res);
+      if (!data.success) {
+        throw new Error(data.message);
       }
 
+      toast.success('同步任务已启动', { description: '可以切换到其它页面，任务会在后台继续执行。' });
+      queryClient.invalidateQueries({ queryKey: ['ingestion', 'jobs'] });
       queryClient.invalidateQueries({ queryKey: ['ingestion', 'files'] });
       queryClient.invalidateQueries({ queryKey: ['datasources'] });
-      queryClient.invalidateQueries({ queryKey: ['metrics'] });
-      queryClient.invalidateQueries({ queryKey: ['logs'] });
-      queryClient.invalidateQueries({ queryKey: ['analytics'] });
-      queryClient.invalidateQueries({ queryKey: ['top'] });
-      queryClient.invalidateQueries({ queryKey: ['timeseries'] });
-      queryClient.invalidateQueries({ queryKey: ['status-codes'] });
-
-      if (hasMore) {
-        toast.warning('同步已暂停', { description: `已处理 ${batches} 批，${totalFiles} 文件，${totalRecords} 条记录。还有更多文件，请稍后继续。` });
-      } else {
-        toast.success('同步完成', { description: `${batches} 批, ${totalFiles} 文件, ${totalRecords} 条记录` });
-      }
     } catch (e: any) {
       toast.error('同步失败', { description: e.message });
-    } finally {
-      setSyncing(null);
-      setSyncProgress(null);
     }
   };
 
@@ -195,11 +187,11 @@ export default function SettingsPage() {
         {activeTab === 'ingestion' && (
           <button
             onClick={() => handleRunSync()}
-            disabled={syncing !== null}
+            disabled={activeJob !== null}
             className="flex items-center gap-1.5 h-8 px-3 rounded-md text-xs bg-primary text-primary-foreground font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <RefreshCw className={cn('w-3.5 h-3.5', syncing && 'animate-spin')} />
-            {syncing ? '自动同步中...' : '自动同步'}
+            <RefreshCw className={cn('w-3.5 h-3.5', activeJob && 'animate-spin')} />
+            {activeJob ? '后台同步中...' : '自动同步'}
           </button>
         )}
       </div>
@@ -303,7 +295,10 @@ export default function SettingsPage() {
               <div className="animate-pulse rounded-md bg-muted/50 h-20" />
             </div>
           ) : (
-            (datasources || []).map(ds => (
+            (datasources || []).map(ds => {
+              const job = getJobForDataSource(ds.id);
+              const isRunning = job?.status === 'running';
+              return (
               <div key={ds.id} className="rounded-md bg-card border border-border p-4 panel-glow">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-md bg-primary/15 flex items-center justify-center">
@@ -334,22 +329,25 @@ export default function SettingsPage() {
                   </div>
                   <button
                     onClick={() => handleRunSync(ds.id)}
-                    disabled={syncing !== null}
+                    disabled={activeJob !== null}
                     className="flex items-center gap-1 h-7 px-2.5 rounded-md text-xs bg-secondary text-muted-foreground border border-border hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                   >
-                    <RefreshCw className={cn('w-3 h-3', syncing === ds.id && 'animate-spin')} />
-                    {syncing === ds.id ? '自动同步中' : '同步'}
+                    <RefreshCw className={cn('w-3 h-3', isRunning && 'animate-spin')} />
+                    {isRunning ? '后台同步中' : '同步'}
                   </button>
                 </div>
-                {syncing === ds.id && syncProgress && (
+                {job && (
                   <div className="mt-3 pt-3 border-t border-border flex items-center gap-4 text-[10px] text-muted-foreground">
-                    <span>批次: {syncProgress.batches}</span>
-                    <span>文件: {syncProgress.files}</span>
-                    <span>记录: {syncProgress.records.toLocaleString()}</span>
+                    <span>任务: {job.status === 'running' ? '同步中' : job.status === 'success' ? '已完成' : job.status === 'paused' ? '已暂停' : '失败'}</span>
+                    <span>批次: {job.batches}</span>
+                    <span>文件: {job.filesProcessed}</span>
+                    <span>记录: {job.recordsIngested.toLocaleString()}</span>
+                    <span>{new Date(job.updated_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                 )}
               </div>
-            ))
+            );
+            })
           )}
         </div>
       )}

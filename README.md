@@ -101,4 +101,5 @@ pnpm test
 
 - `/api/*` is no longer handled by Alibaba Cloud ESA Functions.
 - The server has no built-in authentication yet. Do not expose it publicly without putting it behind a trusted reverse proxy, VPN, or auth layer.
-- Log ingestion is no longer constrained by ESA edge runtime KV and fetch call limits, but very large datasets may still require pagination, database storage, or background jobs.
+- Log ingestion runs as a background job in the Node process. The frontend starts a job and polls `/api/ingestion/jobs`, so navigation does not stop the sync.
+- Very large datasets may still require pagination, database storage, or a durable job queue.
